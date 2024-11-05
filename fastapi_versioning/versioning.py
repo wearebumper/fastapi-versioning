@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, List, Tuple, TypeVar, cast
 
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
-from starlette.routing import BaseRoute
+from fastapi.routing import BaseRoute
 
 CallableT = TypeVar("CallableT", bound=Callable[..., Any])
 
@@ -33,10 +33,11 @@ def VersionedFastAPI(
     enable_latest: bool = False,
     **kwargs: Any,
 ) -> FastAPI:
-    parent_app = FastAPI(
-        title=app.title,
-        **kwargs,
-    )
+    parent_app = FastAPI(title=app.title, **kwargs)
+
+    if "version" in kwargs:
+        del kwargs["version"]
+
     version_route_mapping: Dict[Tuple[int, int], List[APIRoute]] = defaultdict(
         list
     )
@@ -54,16 +55,14 @@ def VersionedFastAPI(
         prefix = prefix_format.format(major=major, minor=minor)
         semver = version_format.format(major=major, minor=minor)
         versioned_app = FastAPI(
-            title=app.title,
-            description=app.description,
-            version=semver,
-            **kwargs,
+            title=app.title, version=f"v{semver}", **kwargs
         )
         for route in version_route_mapping[version]:
             for method in route.methods:
                 unique_routes[route.path + "|" + method] = route
         for route in unique_routes.values():
             versioned_app.router.routes.append(route)
+
         parent_app.mount(prefix, versioned_app)
 
         @parent_app.get(
@@ -78,10 +77,7 @@ def VersionedFastAPI(
         major, minor = version
         semver = version_format.format(major=major, minor=minor)
         versioned_app = FastAPI(
-            title=app.title,
-            description=app.description,
-            version=semver,
-            **kwargs,
+            title=app.title, version=f"v{semver}", **kwargs
         )
         for route in unique_routes.values():
             versioned_app.router.routes.append(route)
